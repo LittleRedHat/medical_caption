@@ -6,6 +6,11 @@ import traceback
 from multiprocessing import Manager, Pool
 import multiprocessing
 
+import xml.etree.ElementTree as ET
+import os
+import re
+import pandas as pd
+
 import sys
 sys.path.append('..')
 from utils import unicode_to_ascii, normalize_string
@@ -99,88 +104,177 @@ def download_chest_xray_meta():
     parser = ChestXRayParser('../dataset/IU_Chest_XRay/NLMCXR_png')
     parser.multiproecess_parse()
 
-def get_mesh_frequency():
-    with open('../data/IU_Chest_XRay/findings.json') as f:
-        records = json.load(f)
 
+def extract_meta(filepath):
+    tree = ET.ElementTree(file=filepath)
+
+    findings = ''
+    impression = ''
+    for elem in tree.iter('AbstractText'):
+        
+        if elem.attrib.get('Label') == 'FINDINGS':
+            findings = elem.text or ''
+
+        if elem.attrib.get('Label') == 'IMPRESSION':
+            impression = elem.text or ''
+
+    report = impression + ' ' + findings
+
+    ids = []
+    for elem in tree.iter('parentImage'):
+        ids.append(elem.attrib.get('id'))
+    
+    tags = []
+    for elem in tree.iter('automatic'):
+        tags.append(elem.text)
+
+    if not len(tags):
+        tags.append('normal')
+    
+    if report.strip() == '' or ids == []:
+        return None
+
+    else:
+        return {'ids':ids,'tags':tags,'report':report}
+        
+
+
+
+def extract(root,output):
+    results = []
+    none_cnt = 0
+
+    for name in os.listdir(root):
+        path = os.path.join(root, name)
+        meta = extract_meta(path)
+
+        if meta == None:
+            none_cnt += 1
+            continue
+        results.append(meta)
+
+    with open(os.path.join(output,'findings.json'),'w') as f:
+        json.dump(results,f)
+
+    print(none_cnt)
+
+def word_frequency(findings_file):
+    with open(findings_file,'r') as f:
+        findings = json.load(f)
+    
+    word2count = {}
+    
+    for item in findings:
+        caption = item['report'].strip().lower()
+        caption = normalize_string(caption)
+        caption = [sent.strip() for sent in caption.split(' .') if len(sent.strip()) > 0]
+        for sent in caption:
+            for word in sent.split():
+                
+                if not re.match(r'^[a-zA-Z]+$',word):
+                    continue
+
+                word2count[word] = word2count.get(word,0) + 1
+
+    total = sum(word2count.values())
+
+
+    word_frequency = [{'word':word,'count':count, 'frequency':count * 1.0 / total} for word,count in word2count.items()]
+    word_frequency.sort(key=lambda x:x['count'],reverse=True)
+
+    frequency_sum = 0.0
+    for idx,item in enumerate(word_frequency):
+        frequency_sum = frequency_sum + item['frequency']
+        if frequency_sum > 0.99:
+            print('top {} words covers 99% occurrences'.format(idx + 1))
+            break
+        
+    word_frequency = pd.DataFrame(word_frequency)
+    word_frequency.to_csv('../output/preprocess/IU_Chest_XRay/words.csv',index=False)
+
+    # with open('../output/preprocess/IU_Chest_XRay/words.txt','w') as f:
+    #     for word,count,frequency in word_frequency:
+    #         f.write('{} {} {:.8f}\n'.format(word,count,frequency))
+
+
+
+def tag_frequency(findings_file):
+    with open(findings_file,'r') as f:
+        findings = json.load(f)
+    
     tag2count = {}
-    for record in records.values():
-        mesh = record.get('mesh',{})
-        tags = mesh.get('major',[])
+    
+    for item in findings:
+        tags = item['tags']
         for tag in tags:
-            tag = tag.strip().lower().replace('/','_').replace(', ','_').replace(' ','_')
-            tag = unicode_to_ascii(tag)
+            tag = tag.strip().lower()
             tag2count[tag] = tag2count.get(tag,0) + 1
+
     total = sum(tag2count.values())
-    tag_frequency = [(tag, count, count * 1.0 / total) for tag,count in tag2count.items()]
-    tag_frequency.sort(key=lambda x:x[1],reverse=True)
+
+
+    tag_frequency = [{'tag':tag, 'count':count, 'frequency':count * 1.0 / total} for tag,count in tag2count.items()]
+    tag_frequency.sort(key=lambda x:x['count'],reverse=True)
 
     frequency_sum = 0.0
     for idx,item in enumerate(tag_frequency):
-        frequency_sum = frequency_sum + item[2]
+        frequency_sum = frequency_sum + item['frequency']
         if frequency_sum > 0.99:
             print('top {} tags covers 99% occurrences'.format(idx + 1))
             break
     
-    with open('../output/preprocess/IU_Chest_XRay/tags.txt','w') as f:
-        for tag,count,frequency in tag_frequency:
-            f.write('{} {} {:.8f}\n'.format(tag,count,frequency))
+    tag_frequency = pd.DataFrame(tag_frequency)
+    tag_frequency.to_csv('../output/preprocess/IU_Chest_XRay/tags.csv',index=False)
 
 
-def train_val_test_split():
-    pass
+    # with open('../output/preprocess/IU_Chest_XRay/tags.txt','w') as f:
+    #     for tag,count,frequency in tag_frequency:
+    #         f.write('{} {} {:.8f}\n'.format(tag,count,frequency))
 
+def train_val_test_split(findings_file,output,test_samples = 500, val_samples = 500):
+    with open(findings_file,'r') as f:
+        findings = json.load(f)
 
-def get_word_frequency():
-    with open('../data/IU_Chest_XRay/findings.json') as f:
-        records = json.load(f)
+    total_findings = []
+    for item in findings:
+        ids = item['ids']
+        for id in ids:
+            total_findings.append({'id':id,'report':item['report'],'tags':item['tags']})
 
-    word2count = {}
-    for record in records.values():
-        impression = record.get('impression','')
-        findings = record.get('findings','')
-        final_report = impression + ' ' + findings
-        final_report = normalize_string(final_report)
-        captions = final_report.split(' .')
-        
-        for caption in captions:
-            caption = caption.strip()
-            for word in caption.split():
-                word2count[word] = word2count.get(word,0) + 1
-    total = sum(word2count.values())
-    word_frequency = [(word,count,count * 1.0 / total) for word,count in word2count.items()]
-    word_frequency.sort(key=lambda x: x[1], reverse=True)
+    import random
+    random.shuffle(total_findings)
 
-    frequency_sum = 0.0
-    for idx,item in enumerate(word_frequency):
-        frequency_sum = frequency_sum + item[2]
-        if frequency_sum > 0.99:
-            print('top {} words covers 99% occurrences'.format(idx + 1))
-            break
-            
-            
-        
+    test_findings = total_findings[:test_samples]
+    val_findings = total_findings[test_samples:(test_samples+val_samples)]
+    train_findings = total_findings[(test_samples+val_samples):]
 
-    with open('../output/preprocess/IU_Chest_XRay/words.txt','w') as f:
-        for word,count,frequency in word_frequency:
-            f.write('{} {} {:.8f}\n'.format(word,count,frequency))
-
-        
+    with open(os.path.join(output,'test_findings.json'),'w') as f:
+        json.dump(test_findings,f)
+    with open(os.path.join(output,'val_findings.json'),'w') as f:
+        json.dump(val_findings,f)
+    with open(os.path.join(output,'train_findings.json'),'w') as f:
+        json.dump(train_findings,f)
 
 
 
+
+
+
+
+             
 
     
-
-
-
+    
+    
+    
 
 
 if __name__ == '__main__':
-    # download_chest_xray_meta()
-    get_word_frequency()
-    get_mesh_frequency()
-    
+    # extract('../data/IU_Chest_XRay/ecgen-radiology','../output/preprocess/IU_Chest_XRay/')
+    word_frequency('../output/preprocess/IU_Chest_XRay/findings.json')
+    tag_frequency('../output/preprocess/IU_Chest_XRay/findings.json')
+    train_val_test_split('../output/preprocess/IU_Chest_XRay/findings.json','../output/preprocess/IU_Chest_XRay/')
+
                 
 
                 
