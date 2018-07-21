@@ -257,9 +257,39 @@ def train_val_test_split(findings_file,output,test_samples = 500, val_samples = 
 
 
 
+def stat_lang(findings_file):
+    with open(findings_file,'r') as f:
+        findings = json.load(f)
+    
+    sent_max_num = 0
+    word_max_num = 0
+    sent_max_report = None
+    word_max_report = None
 
+    for item in findings:
+        report = item['report']
+        caption = normalize_string(report)
+        caption = [sent.strip() for sent in caption.split(' .') if len(sent.strip()) > 0]
+        if sent_max_num < len(caption):
+            sent_max_num = len(caption)
+            sent_max_report = caption
 
+        for sent in caption:
+            words = sent.split()
+            if word_max_num < len(words):
+                word_max_num = len(words)
+                word_max_report = sent
+    print('max sentence number is {} and max words num is {}'.format(sent_max_num,word_max_num))
+    print(sent_max_report)
+    print(word_max_report)
 
+                
+                
+            
+        
+
+    
+    
 
              
 
@@ -274,6 +304,7 @@ if __name__ == '__main__':
     word_frequency('../output/preprocess/IU_Chest_XRay/findings.json')
     tag_frequency('../output/preprocess/IU_Chest_XRay/findings.json')
     train_val_test_split('../output/preprocess/IU_Chest_XRay/findings.json','../output/preprocess/IU_Chest_XRay/')
+    stat_lang('../output/preprocess/IU_Chest_XRay/findings.json')
 
                 
 
