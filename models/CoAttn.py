@@ -171,7 +171,9 @@ class WordDecoder(nn.Module):
         else:
             self.embedding = nn.Embedding.from_pretrained(torch.FloatTensor(config.init_embed),freeze=False)
 
-        self.lstm = nn.LSTM(self.embd_size,self.hidden_size,batch_first=True,num_layers=num_layers)
+        # self.lstm = nn.LSTM(self.embd_size,self.hidden_size,batch_first=True,num_layers=num_layers)
+
+        ## build LSTM for attention
         
         self.out = nn.Linear(self.hidden_size,self.words_size)
     

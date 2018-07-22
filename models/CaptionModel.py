@@ -3,49 +3,31 @@ import torch.nn as nn
 import torch.nn.functional as F 
 from torch.nn.utils.rnn import PackedSequence, pack_padded_sequence, pad_packed_sequence
 
-
-class SpatialAttention(nn.Module):
-    def __init__(self):
-        super(SpatialAttention,self).__init__()
-    
-    def forward(self,feats):
-        pass
-
-
-class ChannleAttention(nn.Module):
-    
-    def __init__(self):
-        super(ChannleAttention,self).__init__()
-    
-    def forward(self,feats):
-        pass
-
-
-class AggregationAttn(nn.Module):
-    pass
-
-
+class Dict2Class():
+    def __init__(self,dictionary):
+        for key in dictionary:
+            setattr(self, key, dictionary[key])
 
 
 
 class SentDecoder(nn.Module):
     def __init__(self,config):
         super(SentDecoder,self).__init__()
-        self.hidden_size = config.hidden_size
-        self.topic_size = config.topic_size
+        self.hidden_dim = config.hidden_dim
+        self.topic_dim = config.topic_dim
         self.num_layers = config.num_layers
         self.bidirection = config.bidirection
         self.batch_size = config.batch_size
-        self.lstm = nn.LSTM(self.ctx_size,self.hidden_size,num_layers=self.num_layers,batch_first=True,bidirection=self.bidirection)
+        self.lstm = nn.LSTM(self.ctx_dim,self.hidden_dim,num_layers=self.num_layers,batch_first=True,bidirection=self.bidirection)
 
         ## topic
-        self.topic_h_W = torch.nn.Linear(self.hidden_size, self.topic_size)
-        self.topic_ctx_W = torch.nn.Linear(self.ctx_size, self.topic_size)
+        self.topic_h_W = torch.nn.Linear(self.hidden_dim, self.topic_dim)
+        self.topic_ctx_W = torch.nn.Linear(self.ctx_dim, self.topic_dim)
 
         # stop distribution output
-        self.stop_h_W = torch.nn.Linear(self.hidden_size, self.hidden_size)
-        self.stop_prev_h_W = torch.nn.Linear(self.hidden_size, self.hidden_size)
-        self.stop_W = torch.nn.Linear(self.hidden_size, 2)
+        self.stop_h_W = torch.nn.Linear(self.hidden_dim, self.hidden_dim)
+        self.stop_prev_h_W = torch.nn.Linear(self.hidden_dim, self.hidden_dim)
+        self.stop_W = torch.nn.Linear(self.hidden_dim, 2)
 
         self.hidden = self.init_hidden()
         self.init_weights()
@@ -65,8 +47,8 @@ class SentDecoder(nn.Module):
         if batch_size is None:
             batch_size  = self.batch_size
 
-        h = torch.zeros(self.num_layers * self.bidirection, batch_size, self.hidden_size, device=self.device)
-        c = torch.zeros(self.num_layers * self.bidirection, batch_size, self.hidden_size, device=self.device)
+        h = torch.zeros(self.num_layers * self.bidirection, batch_size, self.hidden_dim, device=self.device)
+        c = torch.zeros(self.num_layers * self.bidirection, batch_size, self.hidden_dim, device=self.device)
         nn.init.orthogonal_(h)
         nn.init.orthogonal_(c)
         return h,c
@@ -91,8 +73,8 @@ class WordDecoder(nn.Module):
     def __init__(self,config):
         super(WordDecoder,self).__init__()
         self.dict_size = config.dict_size
-        self.hidden_size = config.hidden_size
-        self.embd_size = config.embd_size
+        self.hidden_dim= config.hidden_dim
+        self.embd_dim = config.embd_dim
         self.num_layers = config.num_layers
         self.bidirection = config.bidirection
         self.dropout = config.dropout
@@ -100,16 +82,70 @@ class WordDecoder(nn.Module):
         self.pt = self.pt
         if not self.pt:
             ## +2 for SOS and UNK token
-            self.embedding = nn.Embedding(self.words_size + 2, self.hidden_size)
+            self.embedding = nn.Embedding(self.words_size + 2, self.hidden_dim)
         else:
             self.embedding = nn.Embedding.from_pretrained(torch.FloatTensor(config.init_embed),freeze=False)
         
-        ## +2 for EOS and UNK token
-        self.lstm = nn.LSTM(self.embd_size,self.hidden_size,batch_first=True,num_layers=num_layers,bidirection=self.bidirection)
+        ## build LSTM
+        self.i2h = nn.Linear(self.embd_dim,self.hidden_dim)
+        self.h2h = nn.Linear(self.hidden_dim,self.hidden_dim)
         
+        self.dropout = nn.Dropout(self.dropout)
+
+
+        ## +2 for EOS and UNK token
         self.out = nn.Linear(self.hidden_size,self.words_size + 2)
 
-    def forward(self,ctx,):
-        pass
+    def forward(self,input,topic,ctx,hidden):
+        word_embd = self.embedding(x)
+
+
+        output,hidden = self.lstm(x,hidden)
+        output = self.out(output)
+        return output,hidden
+
+class AggregationModel(nn.Module):
+    def __init__(self,config):
+        super(AggregationAttn,self).__init__(self)
+        sent_decoder_config = {
+            'hidden_size':config.sent_hidden_size,
+            'topic_size':config.topic_size,
+            'num_layers':config.sent_num_layers,
+            'bidirection':config.sent_bidirection,
+            'batch_size':config.sent_batch_size,
+        } 
+        sent_decoder_config = Dict2Class(sent_decoder_config)
+
+        self.sent_decoder = SentDecoder(sent_decoder_config)
+
+        word_decoder_config = {
+            'batch_size':config.word_batch_size,
+            'dict_size':config.dict_size,
+            'num_layers':config.word_num_layers,
+            'embd_size':config.embd_size,
+            'hidden_size':config.word_hidden_size,
+            'dropout':config.word_drop,
+            'bidirection':config.word_bidirection
+        }
+        self.word_decoder = WordDecoder(word_decoder_config)
+        
+
+        self.image_encoder = config.image_encoder
+    
+    def compute_sent_ctx(self,)
+
+    def forward(self,x):
+        image,caption = x
+        logit,feats = self.image_encoder(image)
+
+        
+
+
+        
+
+        
+        
+        
+
 
 

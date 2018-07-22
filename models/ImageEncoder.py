@@ -23,7 +23,8 @@ class ResnetExtractor(nn.Module):
         x = self.resnet.bn1(x)
         x = self.resnet.relu(x)
         x = self.resnet.maxpool(x)
-        
+
+
         for i,block in enumerate(self.resnet.layer1.children()):
             x = block(x)
             if i in layers:
@@ -46,7 +47,7 @@ class ResnetExtractor(nn.Module):
 
         x = self.resnet.avgpool(x)
         x = x.view(x.size(0), -1)
-        return x,output
+        return x,feats
 
 
 class VGGExtractor(nn.Module):
@@ -69,12 +70,12 @@ class MLC(nn.Module):
         self.num_classes = num_classes
         self.backbone = backbone
         if backbone == 'resnet50':
-            resnet50 = M.resnet50(pretrain=True)
-            self.model = ResnetExtractor(M.resnet50())
+            resnet50 = M.resnet50(pretrained=True)
+            self.model = ResnetExtractor(resnet50)
             num_features = resnet50.fc.in_features
             self.classifier = nn.Linear(num_features,num_classes)
         elif backbone == 'vgg19':
-            vgg19 = M.vgg19(pretrain=True)
+            vgg19 = M.vgg19(pretrained=True)
             self.model = VGGExtractor(vgg19)
             self.classifier = nn.Sequential(
                 nn.Linear(512 * 7 * 7, 4096),
@@ -89,20 +90,82 @@ class MLC(nn.Module):
             assert backbone not in ['vgg19','resnet50']
         self.layers = layers
         
+    def forward(self,x,softmax=False):
+        final_layout,feats = self.model(x,self.layers)
+        logits = self.classifier(final_layout)
+        if not softmax:
+            preds = F.sigmoid(logits)
+        else:
+            preds = F.softmax(logits)
+        return preds,feats
+
+
+class SRN(nn.Module):
+    def __init__(self,c,hidden_channle):
+        super(SRN,self).__init__()
+        self.channel = c
+        self.hidden_channle = hidden_channle
+        self.attn_map = nn.Sequential(
+            nn.Conv2d(self.channel,self.hidden_channle,(1,1)),
+            nn.Conv2d(self.hidden_channle,self.hidden_channle,(3,3),padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(self.hidden_channle,self.channel,(1,1))
+        )
+        self.confidence = nn.Sequential(
+            nn.Conv2d(self.channel,self.channel,(1,1),stride=1),
+            nn.Sigmoid()
+        )
+
+    def forward(self,x):
+        ## batch * channle * w * h
+        attention_map = self.attn_map(x)
+        confidence_weight = self.confidence(x)
+        batch_size,channle,w,h = attention_map.size()
+        attention_map = attention_map.reshape(batch_size,channle,-1)
+        attention_map = F.softmax(attention_map)
+        attention_map = attention_map.reshape(batch_size,channle,w,h)
+        output = attention_map * confidence_weight
+
+        return output
+        
+
+class AttnMLC(MLC,nn.Module):
+    def __init__(self,num_classes,backbone='resnet50',layers=[]):
+        super(AttnMLC,self).__init__(num_classes,backbone,layers)
+        # print(backbone)
+        ## for vgg19
+        ## use 
+        if backbone == 'vgg19':
+            ## conv5_4 conv4_4
+            self.layers = [34,20]
+            srn1 = SRN(512,256)
+            srn2 = SRN(256,128)
+            self.branch = nn.ModuleList([nn.Sequential(srn1,nn.AvgPool2d(14,14)),nn.Sequential(nn.Sequential(srn2,nn.AvgPool2d(28,28)))])
+            
+        elif backbone == 'resnet50':
+            
+            ## 13th block and 16th block
+            print('backbone resnet50')
+
+
+            self.layers = [16,13]
+            srn1 = SRN(2048,256)
+            srn2 = SRN(1024,256)
+            self.branch = nn.ModuleList([nn.Sequential(srn1,nn.AvgPool2d(14,14)),nn.Sequential(nn.Sequential(srn2,nn.AvgPool2d(28,28)))])
+
+    
+
     def forward(self,x):
         final_layout,feats = self.model(x,self.layers)
         logits = self.classifier(final_layout)
-        return logits,feats
-
-class AttnMLC(MLC):
-    
-    def __init__(self,num_classes,backbone='resnet50',layers=[],config=[]):
-        super(AttnMLC,self).__init__(num_classes,backbone,layers)
-        ## for vgg19
-        ## use 
-        self.layer_w = 
-
-
-
-    def forward(self,x):
         
+        global_pred = F.sigmoid(logits)
+        total_pred = global_pred
+        
+        for i,feat in enumerate(feats):
+            logits = self.branch[i](feat)
+            logits = logits.view(logits.size(0),-1)
+            branch_pred = F.sigmoid(logits)
+            total_pred = total_pred + branch_pred
+
+        return total_pred / (1 + len(self.layers)),feats

@@ -14,7 +14,8 @@ import sys
 sys.path.append('..')
 import misc.utils as utils
 from dataset.ChestXRay14_MLC import ChestXRay14Dataset
-from models.ImageEncoder import AggregationAttnMLC as mlc_model
+from models.ImageEncoder import AttnMLC as mlc_model
+
 
 def args_parser():
     parser = argparse.ArgumentParser("IU Chest XRay MLC Pretrain")
@@ -35,6 +36,8 @@ def args_parser():
     parser.add_argument('--image_dir',type=str,help='image root')
     parser.add_argument('--start_from',type=int,help='image root',default=-1)
     parser.add_argument('--device_ids',type=str,help='gpu device ids',default='0,1,2,3')
+    parser.add_argument('--backbone',type=str,default='resnet50')
+
     args = parser.parse_args()
     args.save_dir = os.path.join('../output/models/mlc',args.save_dir)
     if args.seed == -1:
@@ -77,12 +80,13 @@ def predict(model,val_dataloader,batch_size=32):
                 image = image.cuda()
                 tags = tags.cuda()
 
-            logits,_ = model.forward(image)
-            probs = F.sigmoid(logits)
+            # logits,_ = model.forward(image)
+            # probs = F.sigmoid(logits)
+            probs,_ = model.forward(image)
 
             # random_print_preds(probs,tags)
 
-            _loss = utils.focal_loss(probs,tags)
+            _loss = utils.focal_loss(probs,tags,val_dataloader.dataset.get_positive_ratio().cuda())
             total_loss += _loss.cpu().item()
             if len(targets):
                 preds = np.concatenate((preds,probs.data.cpu().numpy()),0)
@@ -124,6 +128,7 @@ def train(model,train_dataset,val_dataset,config):
     optimizer = torch.optim.Adam(params=parameters,lr=config.lr)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.25)
 
+
     for epoch in range(1,config.epoches + 1):
         scheduler.step()
         model.train()
@@ -135,8 +140,9 @@ def train(model,train_dataset,val_dataset,config):
                 image = image.cuda()
                 tags = tags.cuda()
 
-            logits,_ = model.forward(image)
-            loss = utils.focal_loss_with_logits(logits,tags)
+            preds,_ = model.forward(image)
+            # preds = F.sigmoid(logits)
+            loss = utils.focal_loss(preds,tags,train_dataset.get_positive_ratio().cuda())
             _loss = loss.data.numpy() if config.device == 'cpu' else loss.data.cpu().numpy()
             loss.backward()
             optimizer.step()
@@ -191,8 +197,9 @@ def main():
     ])
 
     val_dataset = ChestXRay14Dataset(args.image_dir,args.val_file,val_transformer)
+    print(vars(args))
 
-    model = mlc_model(train_dataset.get_tag_size())
+    model = mlc_model(train_dataset.get_tag_size(),backbone=args.backbone)
 
     train(model,train_dataset,val_dataset,args)
         

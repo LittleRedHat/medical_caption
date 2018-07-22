@@ -12,6 +12,7 @@ sys.path.append('..')
 from utils import normalize_string
 
 
+
 class IUChestXRayMLCDataset(Dataset):
     def __init__(self,file_findings,file_tags,image_root,transformer):
         super(IUChestXRayMLCDataset,self).__init__()
@@ -29,8 +30,13 @@ class IUChestXRayMLCDataset(Dataset):
 
         for index,tag in enumerate(self.tags):
             self.tag2idx[tag] = index
+        
+
     
     def description(self):
+        pass
+    
+    def get_positive_ratio(self):
         pass
         
 
@@ -62,7 +68,7 @@ class IUChestXRayMLCDataset(Dataset):
                 
 
     
-    def get_tags_size(self):
+    def get_tag_size(self):
         return len(self.tags)
     
     def __len__(self):
