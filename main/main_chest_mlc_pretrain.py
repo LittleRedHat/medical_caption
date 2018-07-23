@@ -14,7 +14,8 @@ import sys
 sys.path.append('..')
 import misc.utils as utils
 from dataset.IU_Chest_XRay_MLC import IUChestXRayMLCDataset
-from models.ImageEncoder import MLC as mlc_model
+# from models.ImageEncoder import MLC as mlc_model
+from models.ImageEncoder import AttnMLC as mlc_model
 
 def args_parser():
     parser = argparse.ArgumentParser("IU Chest XRay MLC Pretrain")
@@ -33,10 +34,12 @@ def args_parser():
     parser.add_argument('--train_file',type=str,help='train datas')
     parser.add_argument('--val_file',type=str,help='val datas')
     parser.add_argument('--tags_file',type=str,help='tags')
-    parser.add_argument('--backbone',type=str,help='vgg19')
+    parser.add_argument('--backbone',type=str,default='vgg19')
     parser.add_argument('--image_dir',type=str,help='image root')
     parser.add_argument('--start_from',type=int,help='image root',default=-1)
     parser.add_argument('--device_ids',type=str,help='gpu device ids',default='0,1,2,3')
+    parser.add_argument('--loss_alpha',type=float,help="focal loss alpha",default=0.25)
+    parser.add_argument('--loss_gamma',type=float,help="focal loss gamm",default=2.0)
     # parser.add_argument('--loss')
     
     args = parser.parse_args()
@@ -81,12 +84,12 @@ def predict(model,val_dataloader,batch_size=32):
                 image = image.cuda()
                 tags = tags.cuda()
 
-            logits,_ = model.forward(image)
-            probs = F.sigmoid(logits)
+            probs,_ = model.forward(image)
+            # probs = F.sigmoid(logits)
 
             # random_print_preds(probs,tags)
 
-            _loss = utils.focal_loss(probs,tags)
+            _loss = utils.focal_loss_without_balance(probs,tags)
             total_loss += _loss.cpu().item()
             if len(targets):
                 preds = np.concatenate((preds,probs.data.cpu().numpy()),0)
@@ -139,8 +142,9 @@ def train(model,train_dataset,val_dataset,config):
                 image = image.cuda()
                 tags = tags.cuda()
 
-            logits,_ = model.forward(image)
-            loss = utils.focal_loss_with_logits(logits,tags)
+            # logits,_ = model.forward(image)
+            probs,_ = model.forward(image)
+            loss = utils.focal_loss_without_balance(probs,tags)
             _loss = loss.data.numpy() if config.device == 'cpu' else loss.data.cpu().numpy()
             loss.backward()
             optimizer.step()

@@ -133,6 +133,7 @@ def train(model,train_dataset,val_dataset,config):
         scheduler.step()
         model.train()
         time_start_spoch = time.time()
+        sum_loss = 0.0
         for step,sample in enumerate(train_dataloader,1):
             optimizer.zero_grad()
             image,tags = sample
@@ -144,12 +145,13 @@ def train(model,train_dataset,val_dataset,config):
             # preds = F.sigmoid(logits)
             loss = utils.focal_loss(preds,tags,train_dataset.get_positive_ratio().cuda())
             _loss = loss.data.numpy() if config.device == 'cpu' else loss.data.cpu().numpy()
+            sum_loss += _loss
             loss.backward()
             optimizer.step()
 
             if step % config.log == 0:
                 info = 'epoch {} batch step {}/{}: loss = {:.5f} {:.4f}mins'
-                print(info.format(epoch,step, len(train_dataloader), _loss,(time.time() - time_start_spoch) / 60.))
+                print(info.format(epoch,step, len(train_dataloader),sum_loss / step,(time.time() - time_start_spoch) / 60.))
         if epoch % config.eval_frq == 0:
             loss,auc = predict(model,val_dataloader,config.batch_size)
 

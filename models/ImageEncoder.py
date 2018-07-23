@@ -101,18 +101,19 @@ class MLC(nn.Module):
 
 
 class SRN(nn.Module):
-    def __init__(self,c,hidden_channle):
+    def __init__(self,in_channel,hidden_channle,num_classes):
         super(SRN,self).__init__()
-        self.channel = c
+        self.in_channel = in_channel
         self.hidden_channle = hidden_channle
+        self.num_classes = num_classes
         self.attn_map = nn.Sequential(
-            nn.Conv2d(self.channel,self.hidden_channle,(1,1)),
+            nn.Conv2d(self.in_channel,self.hidden_channle,(1,1)),
             nn.Conv2d(self.hidden_channle,self.hidden_channle,(3,3),padding=1),
             nn.ReLU(inplace=True),
-            nn.Conv2d(self.hidden_channle,self.channel,(1,1))
+            nn.Conv2d(self.hidden_channle,self.num_classes,(1,1))
         )
         self.confidence = nn.Sequential(
-            nn.Conv2d(self.channel,self.channel,(1,1),stride=1),
+            nn.Conv2d(self.in_channel,self.num_classes,(1,1),stride=1),
             nn.Sigmoid()
         )
 
@@ -122,36 +123,50 @@ class SRN(nn.Module):
         confidence_weight = self.confidence(x)
         batch_size,channle,w,h = attention_map.size()
         attention_map = attention_map.reshape(batch_size,channle,-1)
-        attention_map = F.softmax(attention_map)
+        attention_map = F.softmax(attention_map,dim=2)
         attention_map = attention_map.reshape(batch_size,channle,w,h)
         output = attention_map * confidence_weight
+
 
         return output
         
 
-class AttnMLC(MLC,nn.Module):
+class AttnMLC(nn.Module):
     def __init__(self,num_classes,backbone='resnet50',layers=[]):
-        super(AttnMLC,self).__init__(num_classes,backbone,layers)
-        # print(backbone)
-        ## for vgg19
-        ## use 
-        if backbone == 'vgg19':
-            ## conv5_4 conv4_4
-            self.layers = [34,20]
-            srn1 = SRN(512,256)
-            srn2 = SRN(256,128)
-            self.branch = nn.ModuleList([nn.Sequential(srn1,nn.AvgPool2d(14,14)),nn.Sequential(nn.Sequential(srn2,nn.AvgPool2d(28,28)))])
-            
-        elif backbone == 'resnet50':
-            
-            ## 13th block and 16th block
-            print('backbone resnet50')
+        super(AttnMLC,self).__init__()
+        self.num_classes = num_classes
+        self.backbone = backbone
 
+        if backbone == 'resnet50':
+            resnet50 = M.resnet50(pretrained=True)
+            self.model = ResnetExtractor(resnet50)
+            num_features = resnet50.fc.in_features
+            self.classifier = nn.Linear(num_features,num_classes)
+            self.layers = [13,16]
+            srn1 = SRN(1024,256,self.num_classes)
+            srn2 = SRN(2048,256,self.num_classes)
+            
+            self.branch = nn.ModuleList([nn.Sequential(srn1,nn.AvgPool2d(28,28)),nn.Sequential(srn2,nn.AvgPool2d(14,14))])
 
-            self.layers = [16,13]
-            srn1 = SRN(2048,256)
-            srn2 = SRN(1024,256)
-            self.branch = nn.ModuleList([nn.Sequential(srn1,nn.AvgPool2d(14,14)),nn.Sequential(nn.Sequential(srn2,nn.AvgPool2d(28,28)))])
+        elif backbone == 'vgg19':
+            vgg19 = M.vgg19(pretrained=True)
+            self.model = VGGExtractor(vgg19)
+            self.classifier = nn.Sequential(
+                nn.Linear(512 * 7 * 7, 4096),
+                nn.ReLU(True),
+                nn.Dropout(),
+                nn.Linear(4096, 4096),
+                nn.ReLU(True),
+                nn.Dropout(),
+                nn.Linear(4096, num_classes),
+            )
+            self.layers = [20,34]
+            srn1 = SRN(512,256,self.num_classes)
+            srn2 = SRN(512,256,self.num_classes)
+            self.branch = nn.ModuleList([nn.Sequential(srn1,nn.AvgPool2d(28,28)),nn.Sequential(srn2,nn.AvgPool2d(14,14))])
+        else:
+            assert backbone not in ['vgg19','resnet50']
+            
 
     
 

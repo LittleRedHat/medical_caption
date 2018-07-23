@@ -27,9 +27,11 @@ class IUChestXRayMLCDataset(Dataset):
             self.findings = json.load(f)
 
         self.tags = list(pd.read_csv(self.file_tags)['tag'].values)
+        self.positive_ratio = list(pd.read_csv(self.file_tags)['frequency'].values)
 
         for index,tag in enumerate(self.tags):
             self.tag2idx[tag] = index
+        
         
 
     
@@ -37,7 +39,7 @@ class IUChestXRayMLCDataset(Dataset):
         pass
     
     def get_positive_ratio(self):
-        pass
+        return torch.tensor(self.positive_ratio,dtype=torch.float)
         
 
     def __getitem__(self,index):

@@ -8,7 +8,13 @@ class Dict2Class():
         for key in dictionary:
             setattr(self, key, dictionary[key])
 
+class AggragationAttn(nn.Module):
+    def __init__(self):
+        super(AggragationAttn,self).__init__()
 
+    def forward(self,feats,hidden):
+        
+        
 
 class SentDecoder(nn.Module):
     def __init__(self,config):
@@ -89,7 +95,7 @@ class WordDecoder(nn.Module):
         ## build LSTM
         self.i2h = nn.Linear(self.embd_dim,self.hidden_dim)
         self.h2h = nn.Linear(self.hidden_dim,self.hidden_dim)
-        
+
         self.dropout = nn.Dropout(self.dropout)
 
 
