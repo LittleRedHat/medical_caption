@@ -17,6 +17,7 @@ class ResnetExtractor(nn.Module):
         self.resnet = resnet
         self.resnet_layers = [len(self.resnet.layer1),len(self.resnet.layer2),len(self.resnet.layer3),len(self.resnet.layer4)]
 
+
     def forward(self,x,layers=[]):
         feats = []
         x = self.resnet.conv1(x)
@@ -138,7 +139,7 @@ class AttnMLC(nn.Module):
         self.backbone = backbone
 
         if backbone == 'resnet50':
-            resnet50 = M.resnet50(pretrained=True)
+            resnet50 = M.resnet50(pretrained=False)
             self.model = ResnetExtractor(resnet50)
             num_features = resnet50.fc.in_features
             self.classifier = nn.Linear(num_features,num_classes)
@@ -149,18 +150,19 @@ class AttnMLC(nn.Module):
             self.branch = nn.ModuleList([nn.Sequential(srn1,nn.AvgPool2d(28,28)),nn.Sequential(srn2,nn.AvgPool2d(14,14))])
 
         elif backbone == 'vgg19':
-            vgg19 = M.vgg19(pretrained=True)
+            vgg19 = M.vgg19_bn(pretrained=True)
             self.model = VGGExtractor(vgg19)
             self.classifier = nn.Sequential(
-                nn.Linear(512 * 7 * 7, 4096),
+                nn.Linear(512 * 7 * 7, 1024),
                 nn.ReLU(True),
                 nn.Dropout(),
-                nn.Linear(4096, 4096),
+                nn.Linear(1024, 1024),
                 nn.ReLU(True),
                 nn.Dropout(),
-                nn.Linear(4096, num_classes),
+                nn.Linear(1024, num_classes),
             )
-            self.layers = [20,34]
+            # self.layers = [20,34]
+            self.layers = [38,51]
             srn1 = SRN(512,256,self.num_classes)
             srn2 = SRN(512,256,self.num_classes)
             self.branch = nn.ModuleList([nn.Sequential(srn1,nn.AvgPool2d(28,28)),nn.Sequential(srn2,nn.AvgPool2d(14,14))])

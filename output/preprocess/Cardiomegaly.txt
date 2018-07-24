@@ -1,0 +1,46 @@
+C0018800	
+  Cardiomegaly
+C0033141	
+  Cardiomyopathies, Primary
+C0265873	
+  Congenital cardiomegaly
+C0694541	
+  Cardiomegaly - hypertensive
+C0741939	
+  CARDIOMEGALY NEW
+C2676462	
+  Cardiomegaly (rare)
+C2733179	
+  Hypertrophic cardiomegaly
+C3532171	
+  Fetal cardiomegaly
+C0149721	
+  Left Ventricular Hypertrophy
+C0162770	
+  Right Ventricular Hypertrophy
+C0238705	
+  Left atrial hypertrophy
+C0239012	
+  CHEST XRAY CARDIOMEGALY
+C0340425	
+  Hypertrophic cardiomyopathy without obstruction
+C0748427	
+  Right atrial enlargement
+C0795905	
+  Cantu syndrome
+C0856198	
+  Cardiomegaly (excl hypertensive)
+C1391993	
+  glycogen; cardiomegaly (manifestation)
+C2073463	
+  x-ray of chest: cardiomegaly
+C2673307	
+  Cardiomegaly (type II, infantile)
+C3178778	
+  Cardiomegaly, Exercise-Induced
+C4315352	
+  Cardiomegaly (in some patients)
+C4325530	
+  Hypertrophic cardiomegaly due to hypertension
+C3537248	
+  congenital hypertrichosis-osteochondrodysplasia-cardiomegaly syndrome

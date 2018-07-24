@@ -1,0 +1,50 @@
+C0013687	
+  effusion
+C1546613	
+  Specimen Source Codes - Effusion
+C2317432	
+  Effusion (substance)
+C0003964	
+  Peritoneal Fluid (body substance)
+C0013691	
+  Chylous effusion
+C0031039	
+  Pericardial effusion
+C0032227	
+  Pleural effusion disorder
+C0038538	
+  Subdural Effusion
+C0080032	
+  Pleural Effusion, Malignant
+C0158150	
+  Effusion of joint of shoulder region
+C0263833	
+  Hip joint effusion
+C0264550	
+  Pleural effusion associated with pulmonary infection
+C0264551	
+  Pleurisy with effusion
+C0302149	
+  Serous effusion
+C0333260	
+  Serofibrinous effusion
+C0333261	
+  Serosanguineous effusion
+C0339434	
+  Choroidal effusion
+C0340018	
+  Pseudochylothorax
+C0343165	
+  Ankle joint effusion
+C0343166	
+  Knee joint effusion
+C0343167	
+  Wrist joint effusion
+C0343168	
+  Elbow joint effusion
+C0444115	
+  Effusion sample
+C0449578	
+  Character of effusion
+C0574937	
+  Spinal effusion

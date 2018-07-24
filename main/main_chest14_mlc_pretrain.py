@@ -64,6 +64,13 @@ def random_print_preds(prob,target,threhold=0.5):
     print(truth.squeeze())
 
 
+def normalize(image):
+    for channel in range(image.size(0)):
+        mean = image[channel,:,:].mean()
+        std = image[channel,:,:].std()
+        image[channel,:,:] = (image[channel,:,:] - mean) / std
+    return image
+
 def predict(model,val_dataloader,batch_size=32):
     model.eval()
     
@@ -112,11 +119,13 @@ def train(model,train_dataset,val_dataset,config):
     
     if config.start_from != -1:
         model.load_state_dict(torch.load(os.path.join(config.save_dir, 'model_params_{}.pkl'.format(config.start_from))))
-    if torch.cuda.is_available():
-        model = model.cuda()
+    # if torch.cuda.is_available():
+    #     model = model.cuda()
 
     if torch.cuda.device_count() > 1:
-        model = nn.DataParallel(model)
+        model = nn.DataParallel(model).cuda()
+    elif torch.cuda.is_available():
+        model = model.cuda()
 
     num_classes = train_dataset.get_tag_size()
     valid_file = open(os.path.join(config.save_dir, 'valid_result.csv'), 'w')
@@ -125,7 +134,8 @@ def train(model,train_dataset,val_dataset,config):
 
     parameters = filter(lambda p: p.requires_grad, model.parameters())
 
-    optimizer = torch.optim.Adam(params=parameters,lr=config.lr)
+    # optimizer = torch.optim.Adam(params=parameters,lr=config.lr)
+    optimizer = torch.optim.SGD(parameters,lr=config.lr,momentum=0.9)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.25)
 
 
@@ -186,7 +196,8 @@ def main():
         transforms.RandomRotation(10),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        transforms.Lambda(normalize)
 
     ])
     train_dataset = ChestXRay14Dataset(args.image_dir,args.train_file,train_transformer)
@@ -194,7 +205,8 @@ def main():
     val_transformer = transforms.Compose([
         transforms.Resize(size=image_size),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        transforms.Lambda(normalize)
 
     ])
 

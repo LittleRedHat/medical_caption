@@ -115,11 +115,11 @@ def train(model,train_dataset,val_dataset,config):
     
     if config.start_from != -1:
         model.load_state_dict(torch.load(os.path.join(config.save_dir, 'model_params_{}.pkl'.format(config.start_from))))
-    if torch.cuda.is_available():
-        model = model.cuda()
+    # if torch.cuda.is_available():
+    #     model = model.cuda()
 
     if torch.cuda.device_count() > 1:
-        model = nn.DataParallel(model)
+        model = nn.DataParallel(model).cuda()
 
     num_classes = train_dataset.get_tag_size()
     valid_file = open(os.path.join(config.save_dir, 'valid_result.csv'), 'w')
@@ -145,6 +145,7 @@ def train(model,train_dataset,val_dataset,config):
             # logits,_ = model.forward(image)
             probs,_ = model.forward(image)
             loss = utils.focal_loss_without_balance(probs,tags)
+
             _loss = loss.data.numpy() if config.device == 'cpu' else loss.data.cpu().numpy()
             loss.backward()
             optimizer.step()
@@ -163,6 +164,13 @@ def train(model,train_dataset,val_dataset,config):
         if epoch % config.save_frq == 0:
             torch.save(model.state_dict(),os.path.join(config.save_dir, 'model_params_{}.pkl'.format(epoch)))
     valid_file.close()
+
+def normalize(image):
+    for channel in range(image.size(0)):
+        mean = image[channel,:,:].mean()
+        std = image[channel,:,:].std()
+        image[channel,:,:] = (image[channel,:,:] - mean) / std
+    return image
 
 def main():
     start_time = time.time()
@@ -184,7 +192,8 @@ def main():
         transforms.RandomRotation(10),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        transforms.Lambda(normalize)
 
     ])
     train_dataset = IUChestXRayMLCDataset(args.train_file,args.tags_file,args.image_dir,train_transformer)
@@ -192,8 +201,8 @@ def main():
     val_transformer = transforms.Compose([
         transforms.Resize(size=image_size),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-
+        # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        transforms.Lambda(normalize)
     ])
 
     val_dataset = IUChestXRayMLCDataset(args.val_file,args.tags_file,args.image_dir,val_transformer)

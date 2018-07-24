@@ -71,7 +71,7 @@ def focal_loss(pred,target,positive_ratio,gamma = 2,average = True,eps=1e-10):
         loss = loss.sum()
     return loss
 
-def focal_loss_without_balance(pred,target,alpha = 0.1,gamma = 2,average = True,eps=1e-10):
+def focal_loss_without_balance(pred,target,alpha = 0.15,gamma = 2,average = True,eps=1e-10):
     pred = torch.clamp(pred, eps, 1 - eps)
     # weight = torch.exp(target + (1 - target * 2) * positive_ratio)
     loss = - (alpha * torch.pow((1 - pred),gamma) * target * torch.log(pred) + (1 - alpha) * torch.pow(pred,gamma) * (1 - target) * torch.log(1 - pred))

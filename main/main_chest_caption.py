@@ -8,3 +8,20 @@ import numpy as np
 import argparse
 import time
 import os
+
+def main():
+    pass
+
+def parse_args():
+    pass
+
+def train():
+    pass
+
+
+def eval():
+    pass
+
+
+if __name__ == '__main__':
+    pass

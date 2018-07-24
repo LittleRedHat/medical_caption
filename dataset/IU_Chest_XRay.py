@@ -53,6 +53,9 @@ class ChestIUXRayDataset(Dataset):
         for index,tag in enumerate(self.tags):
             self.tag2idx[tag] = index
 
+
+    def get_dict(self):
+        return self.idx2word
     
     def get_tags_size(self):
         return len(self.tags)
@@ -60,7 +63,7 @@ class ChestIUXRayDataset(Dataset):
     def get_words_size(self):
         return len(self.word2idx)
 
-    def image_preprocess(self,image_path,image_size):
+    def image_preprocess(self,image_path):
         image = Image.open(image_path)
         image = image.convert('RGB')
 
@@ -74,7 +77,7 @@ class ChestIUXRayDataset(Dataset):
         sent_embds = []
 
         sent_length = []
-        sent_num = len(caption)
+        sent_num = min(len(caption),MAX_SENT)
 
 
         ## 截断过长的caption以及过长的sent
@@ -120,20 +123,26 @@ class ChestIUXRayDataset(Dataset):
         image_path = os.path.join(self.image_root,record['id']+'.png')
 
         image = self.image_preprocess(image_path,self.config['image_size'])
-        caption = self.caption_preprocess(report)
-        stop = [1 if (i+1) < len(caption) else 0 for i in range(MAX_SENT)]
+        sent_idxs,sent_num,sent_length = self.caption_preprocess(report)
+       
+        stop = []
+        stop = [1 if (i+1) < sent_num else 0 for i in range(MAX_SENT)]
 
         tags = self.tag_preprocess(tags)
-        tags_vector = np.zeros(self.get_tags_size())
-        for i in tags:
-            tags_vector[i] = 1
+        # tags_vector = np.zeros(self.get_tags_size())
+
+        # for i in tags:
+        #     tags_vector[i] = 1
 
 
         return torch.tensor(image,dtype=torch.float), \
-               torch.tensor(caption,dtype=torch.long), \
+               torch.tensor(sent_idxs,dtype=torch.long), \
+               torch.tensor(sent_length,dtype=torch.long), \
+               torch.tensor(sent_num,dtype=torch.long), \
                torch.tensor(stop,dtype=torch.float), \
                torch.tensor(tags,dtype=torch.float), \
-               torch.tensor(tags_vector,dtype=torch.float)
+
+            #    torch.tensor(tags_vector,dtype=torch.float)
                
 
 
