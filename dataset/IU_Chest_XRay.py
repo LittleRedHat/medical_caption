@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 from PIL import Image
 import os
+import csv
 
 
 import sys
@@ -16,11 +17,11 @@ SOS_INDEX = 0
 EOS_INDEX = 1
 UNK_INDEX = 2
 MAX_SENT = 10
-MAX_WORDS = 25
+MAX_WORDS = 15
 
 
 class ChestIUXRayDataset(Dataset):
-    def __init__(self,file_findings,file_words,file_tags,image_root,config,transformer=None):
+    def __init__(self,file_findings,file_words,file_tags,image_root,transformer=None):
         super(ChestIUXRayDataset,self).__init__()
 
         self.file_findings = file_findings
@@ -53,6 +54,17 @@ class ChestIUXRayDataset(Dataset):
         for index,tag in enumerate(self.tags):
             self.tag2idx[tag] = index
 
+    def get_config(self):
+        return {
+            'SOS_INDEX':SOS_INDEX,
+            'EOS_INDEX':EOS_INDEX,
+            'UNK_INDEX':UNK_INDEX,
+            'MAX_SENT':MAX_SENT,
+            'MAX_WORDS':MAX_WORDS
+        }
+
+    def get_word_embed(self):
+        return []
 
     def get_dict(self):
         return self.idx2word
@@ -66,8 +78,7 @@ class ChestIUXRayDataset(Dataset):
     def image_preprocess(self,image_path):
         image = Image.open(image_path)
         image = image.convert('RGB')
-
-        image = transformer(image)
+        image = self.transformer(image)
         return image
 
     def caption_preprocess(self,report):
@@ -90,18 +101,17 @@ class ChestIUXRayDataset(Dataset):
             sent = caption[i_sent]
             words = sent.split()
 
-            length = min(len(words,MAX_WORDS))
+            length = min(len(words),MAX_WORDS)
             sent_length.append(length)
 
             sent_embd = []
             
-
             for i_word in range(MAX_WORDS + 1):
                 if i_word >= len(words):
                     sent_embd.append(self.word2idx['EOS'])
                 else:
                     word = words[i_word]
-                    sent_embd.append(self.word2idx.get(word,,self.word2idx['UNK']))
+                    sent_embd.append(self.word2idx.get(word,self.word2idx['UNK']))
 
             sent_embds.append(sent_embd)
 
@@ -122,11 +132,11 @@ class ChestIUXRayDataset(Dataset):
         report = record['report']
         image_path = os.path.join(self.image_root,record['id']+'.png')
 
-        image = self.image_preprocess(image_path,self.config['image_size'])
+        image = self.image_preprocess(image_path)
         sent_idxs,sent_num,sent_length = self.caption_preprocess(report)
        
         stop = []
-        stop = [1 if (i+1) < sent_num else 0 for i in range(MAX_SENT)]
+        stop = [0 if (i+1) < sent_num else 1 for i in range(MAX_SENT)]
 
         tags = self.tag_preprocess(tags)
         # tags_vector = np.zeros(self.get_tags_size())
@@ -140,7 +150,7 @@ class ChestIUXRayDataset(Dataset):
                torch.tensor(sent_length,dtype=torch.long), \
                torch.tensor(sent_num,dtype=torch.long), \
                torch.tensor(stop,dtype=torch.float), \
-               torch.tensor(tags,dtype=torch.float), \
+               torch.tensor(tags,dtype=torch.float)
 
             #    torch.tensor(tags_vector,dtype=torch.float)
                

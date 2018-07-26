@@ -15,6 +15,7 @@ sys.path.append('..')
 import misc.utils as utils
 from dataset.ChestXRay14_MLC import ChestXRay14Dataset
 from models.ImageEncoder import AttnMLC as mlc_model
+from models.ImageEncoder import MLC as simple_mlc_model
 
 
 def args_parser():
@@ -37,6 +38,8 @@ def args_parser():
     parser.add_argument('--start_from',type=int,help='image root',default=-1)
     parser.add_argument('--device_ids',type=str,help='gpu device ids',default='0,1,2,3')
     parser.add_argument('--backbone',type=str,default='resnet50')
+    parser.add_argument('--weight_decay',type=float,default=0.0001)
+    parser.add_argument('--model',type=str,default='simple')
 
     args = parser.parse_args()
     args.save_dir = os.path.join('../output/models/mlc',args.save_dir)
@@ -135,12 +138,12 @@ def train(model,train_dataset,val_dataset,config):
     parameters = filter(lambda p: p.requires_grad, model.parameters())
 
     # optimizer = torch.optim.Adam(params=parameters,lr=config.lr)
-    optimizer = torch.optim.SGD(parameters,lr=config.lr,momentum=0.9)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.25)
-
+    optimizer = torch.optim.SGD(parameters,lr=config.lr,momentum=0.9,nesterov=True,weight_decay=config.weight_decay)
+    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.25)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,mode='max',factor=0.5,patience=2,threshold=0.01)
 
     for epoch in range(1,config.epoches + 1):
-        scheduler.step()
+        # scheduler.step()
         model.train()
         time_start_spoch = time.time()
         sum_loss = 0.0
@@ -167,13 +170,18 @@ def train(model,train_dataset,val_dataset,config):
 
             avg_auc = np.mean(auc)
 
+            scheduler.step(avg_auc)
+
             info = 'epoch {}, loss_test = {:.6f} auc = {} time/epoch={:.1f}mins'
             valid_file.write(info.format(epoch,loss,avg_auc,(time.time() - time_start_spoch) / 60.) + '\n')
             valid_file.flush()
             print(info.format(epoch, loss, avg_auc,(time.time() - time_start_spoch) / 60.) + '\n')
             
         if epoch % config.save_frq == 0:
-            torch.save(model.state_dict(),os.path.join(config.save_dir, 'model_params_{}.pkl'.format(epoch)))
+            if torch.cuda.device_count() > 1:
+                torch.save(model.module.state_dict(),os.path.join(config.save_dir, 'model_params_{}.pkl'.format(epoch)))
+            else:
+                torch.save(model.state_dict(),os.path.join(config.save_dir, 'model_params_{}.pkl'.format(epoch)))
     valid_file.close()
 
 def main():
@@ -212,8 +220,10 @@ def main():
 
     val_dataset = ChestXRay14Dataset(args.image_dir,args.val_file,val_transformer)
     print(vars(args))
-
-    model = mlc_model(train_dataset.get_tag_size(),backbone=args.backbone)
+    if args.model == 'simple':
+        model = simple_mlc_model(train_dataset.get_tag_size(),backbone=args.backbone)
+    else:
+        model = mlc_model(train_dataset.get_tag_size(),backbone=args.backbone)
 
     train(model,train_dataset,val_dataset,args)
         
